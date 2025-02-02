@@ -1,5 +1,9 @@
 # History
 
+## 2025/02/02
+- Add one_bit_adder, 3 input neurons, 1 hidden layer with 4 neurons, and an output layer with 2 neurons
+- Update neuralib.h to use arena to easily manage the memory
+
 ## 2025/01/31
 - Add neuralib.h, a framework for nerual network
 - Add xor.c, 1 input layer, 1 hidden layer with 2 neurons, 1 output layer

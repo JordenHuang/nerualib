@@ -19,6 +19,9 @@ logic_gate:
 xor:
 	$(CC) $(CFLAGS) -o xor.out xor.c $(LIBS)
 
+one_bit_adder:
+	$(CC) $(CFLAGS) -o one_bit_adder.out one_bit_adder.c $(LIBS)
+
 .PHONY: cleann
 clean:
 	rm *.out

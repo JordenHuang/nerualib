@@ -20,6 +20,7 @@ int main(void)
     nl_define_layers(&model, NL_ARRAY_LEN(layers), layers);
     Mat x = nl_mat_alloc(2, 1);
     Mat y = nl_mat_alloc(1, 1);
+    nl_rand_init(0, 0);
 
     for (size_t i = 0; i < NL_ARRAY_LEN(layers) - 1; ++i) {
         nl_mat_print(model.ws[i]);
@@ -28,7 +29,8 @@ int main(void)
 
     printf("----------\n");
     float lr = 1e-3;
-    size_t epoch = 2000 * 1000;
+    // size_t epoch = 2000 * 1000;
+    size_t epoch = 500000;
     for (size_t e = 0; e < epoch; ++e) {
         for (size_t i = 0; i < TRAIN_SIZE; ++i) {
             x.items[0] = train[i][0];
