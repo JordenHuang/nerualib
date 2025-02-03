@@ -98,16 +98,18 @@ void nl_mat_cost_prime(Mat dst, Mat m, Mat ys, Cost_type ct);
 typedef struct {
     size_t count;
     size_t *layers; // Input, hidden, output layers, input layer doesn't have w and b
+    Activation_type *acts; // Activation function type for hidden layers and output layer, length should be (count-1)
+    Cost_type ct; // Cost function type
     Mat *ws; // Array of matrices, a row a neuron
     Mat *bs; // Array of column vectors
 } NeuralNet;
 
-void nl_define_layers(NeuralNet *model, size_t count, size_t *layers);
-void nl_define_layers_with_arena(Arena *arena, NeuralNet *model, size_t count, size_t *layers);
-void nl_model_train(NeuralNet model, Mat xs, Mat ys, float lr, Activation_type act, Cost_type ct);
-void nl_model_feed_forward(NeuralNet model, Mat *zsa, Mat *asa, Activation_type act);
-void nl_model_backprop(NeuralNet model, Mat ys, Mat *zsa, Mat *asa, float lr, Activation_type act, Cost_type ct);
-void nl_model_predict(NeuralNet model, Mat ins, Mat outs, Activation_type act);
+void nl_define_layers(NeuralNet *model, size_t count, size_t *layers, Activation_type *acts, Cost_type ct);
+void nl_define_layers_with_arena(Arena *arena, NeuralNet *model, size_t count, size_t *layers, Activation_type *acts, Cost_type ct);
+void nl_model_train(NeuralNet model, Mat xs, Mat ys, float lr);
+void nl_model_feed_forward(NeuralNet model, Mat *zsa, Mat *asa);
+void nl_model_backprop(NeuralNet model, Mat ys, Mat *zsa, Mat *asa, float lr);
+void nl_model_predict(NeuralNet model, Mat ins, Mat outs);
 void nl_model_free(NeuralNet model);
 
 #endif // _NERUALIB_H_
@@ -419,16 +421,19 @@ void nl_mat_free(Mat m)
 }
 
 
-void nl_define_layers(NeuralNet *model, size_t count, size_t *layers)
+void nl_define_layers(NeuralNet *model, size_t count, size_t *layers, Activation_type *acts, Cost_type ct)
 {
     model->count = count;
+    model->ct = ct;
     model->layers = NL_MALLOC(sizeof(size_t) * count);
     for (size_t i = 0; i < count; ++i) {
         model->layers[i] = layers[i];
     }
+    model->acts = NL_MALLOC(sizeof(size_t) * (count - 1));
     model->ws = NL_MALLOC(sizeof(Mat) * (count - 1));
     model->bs = NL_MALLOC(sizeof(Mat) * (count - 1));
     for (size_t i = 1; i < count; ++i) {
+        model->acts[i-1] = acts[i-1];
         model->ws[i-1] = nl_mat_alloc(layers[i], layers[i - 1]);
         model->bs[i-1] = nl_mat_alloc(layers[i], 1);
         nl_mat_rand(model->ws[i-1]);
@@ -436,16 +441,19 @@ void nl_define_layers(NeuralNet *model, size_t count, size_t *layers)
     }
 }
 
-void nl_define_layers_with_arena(Arena *arena, NeuralNet *model, size_t count, size_t *layers)
+void nl_define_layers_with_arena(Arena *arena, NeuralNet *model, size_t count, size_t *layers, Activation_type *acts, Cost_type ct)
 {
     model->count = count;
+    model->ct = ct;
     model->layers = arena_alloc(arena, sizeof(size_t) * count);
     for (size_t i = 0; i < count; ++i) {
         model->layers[i] = layers[i];
     }
+    model->acts = arena_alloc(arena, sizeof(size_t) * (count - 1));
     model->ws = arena_alloc(arena, sizeof(Mat) * (count - 1));
     model->bs = arena_alloc(arena, sizeof(Mat) * (count - 1));
     for (size_t i = 1; i < count; ++i) {
+        model->acts[i-1] = acts[i-1];
         model->ws[i-1] = nl_mat_alloc_with_arena(arena, layers[i], layers[i - 1]);
         model->bs[i-1] = nl_mat_alloc_with_arena(arena, layers[i], 1);
         nl_mat_rand(model->ws[i-1]);
@@ -453,7 +461,7 @@ void nl_define_layers_with_arena(Arena *arena, NeuralNet *model, size_t count, s
     }
 }
 
-void nl_model_train(NeuralNet model, Mat xs, Mat ys, float lr, Activation_type act, Cost_type ct)
+void nl_model_train(NeuralNet model, Mat xs, Mat ys, float lr)
 {
     Arena arena = arena_new(4 * 1024 * 1024);
 
@@ -472,7 +480,7 @@ void nl_model_train(NeuralNet model, Mat xs, Mat ys, float lr, Activation_type a
     nl_mat_copy(asa[0], xs);
 
     // Forward pass
-    nl_model_feed_forward(model, zsa, asa, act);
+    nl_model_feed_forward(model, zsa, asa);
 
     Mat losses = nl_mat_alloc_with_arena(&arena, asa[model.count-1].rows, asa[model.count-1].cols);
     float cost = nl_mat_cost(losses, asa[model.count-1], ys, MSE);
@@ -486,23 +494,23 @@ void nl_model_train(NeuralNet model, Mat xs, Mat ys, float lr, Activation_type a
     // printf("\n");
 
     // Backward pass (backpropagaton)
-    nl_model_backprop(model, ys, zsa, asa, lr, act, ct);
+    nl_model_backprop(model, ys, zsa, asa, lr);
 
     // Free memory
     arena_destroy(arena);
 }
 
-void nl_model_feed_forward(NeuralNet model, Mat *zsa, Mat *asa, Activation_type act)
+void nl_model_feed_forward(NeuralNet model, Mat *zsa, Mat *asa)
 {
     for (size_t i = 1; i < model.count; ++i) {
         nl_mat_dot(zsa[i-1], model.ws[i-1], asa[i-1]);
         nl_mat_add(zsa[i-1], zsa[i-1], model.bs[i-1]);
-        nl_mat_act(asa[i], zsa[i-1], act);
+        nl_mat_act(asa[i], zsa[i-1], model.acts[i-1]);
     }
 }
 
 // http://neuralnetworksanddeeplearning.com/chap2.html
-void nl_model_backprop(NeuralNet model, Mat ys, Mat *zsa, Mat *asa, float lr, Activation_type act, Cost_type ct)
+void nl_model_backprop(NeuralNet model, Mat ys, Mat *zsa, Mat *asa, float lr)
 {
     Arena arena = arena_new(4 * 1024 * 1024);
 
@@ -520,8 +528,8 @@ void nl_model_backprop(NeuralNet model, Mat ys, Mat *zsa, Mat *asa, float lr, Ac
 
     // Calculate delta
     sp = nl_mat_alloc_with_arena(&arena, zsa[l-1].rows, zsa[l-1].cols);
-    nl_mat_act_prime(sp, zsa[l-1], act);
-    nl_mat_cost_prime(delta, asa[l], ys, ct);
+    nl_mat_act_prime(sp, zsa[l-1], model.acts[l-1]);
+    nl_mat_cost_prime(delta, asa[l], ys, model.ct);
     nl_mat_mult(delta, delta, sp);
     // nl_mat_free(sp);
 
@@ -562,7 +570,7 @@ void nl_model_backprop(NeuralNet model, Mat ys, Mat *zsa, Mat *asa, float lr, Ac
     // Hidden layers
     for (size_t h = l-1; h > 0; --h) {
         sp = nl_mat_alloc_with_arena(&arena, zsa[h-1].rows, zsa[h-1].cols);
-        nl_mat_act_prime(sp, zsa[h-1], act);
+        nl_mat_act_prime(sp, zsa[h-1], model.acts[h-1]);
 
         wsT = nl_mat_alloc_with_arena(&arena, model.ws[(h+1)-1].cols, model.ws[(h+1)-1].rows);
         nl_mat_transpose(wsT, model.ws[(h+1)-1]); // transpose ws[l+1]
@@ -631,7 +639,7 @@ void nl_model_backprop(NeuralNet model, Mat ys, Mat *zsa, Mat *asa, float lr, Ac
     arena_destroy(arena);
 }
 
-void nl_model_predict(NeuralNet model, Mat ins, Mat outs, Activation_type act)
+void nl_model_predict(NeuralNet model, Mat ins, Mat outs)
 {
     // Alloc memoy for zs, array of column vectors
     Mat *zsa = NL_MALLOC(sizeof(Mat) * (model.count - 1));
@@ -649,7 +657,7 @@ void nl_model_predict(NeuralNet model, Mat ins, Mat outs, Activation_type act)
     for (size_t i = 1; i < model.count; ++i) {
         nl_mat_dot(zsa[i-1], model.ws[i-1], asa[i-1]);
         nl_mat_add(zsa[i-1], zsa[i-1], model.bs[i-1]);
-        nl_mat_act(asa[i], zsa[i-1], act);
+        nl_mat_act(asa[i], zsa[i-1], model.acts[i-1]);
     }
 
     // Assign predict result to outs
@@ -674,6 +682,7 @@ void nl_model_free(NeuralNet model)
         nl_mat_free(model.bs[i-1]);
     }
     NL_FREE(model.layers);
+    NL_FREE(model.acts);
     NL_FREE(model.ws);
     NL_FREE(model.bs);
 }

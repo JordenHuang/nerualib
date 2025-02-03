@@ -36,12 +36,15 @@ float train[][5] = {
 
 int main(void)
 {
-    NeuralNet model;
-    size_t layers[] = {3, 4, 2};
-    nl_define_layers(&model, NL_ARRAY_LEN(layers), layers);
-
     Arena arena = arena_new(1024 * 1024);
     nl_rand_init(0, 0);
+
+    NeuralNet model;
+    size_t layers[] = {3, 4, 2};
+    Activation_type acts[] = {SIGMOID, RELU};
+    // Activation_type acts[] = {SIGMOID, SIGMOID};
+    nl_define_layers_with_arena(&arena, &model, NL_ARRAY_LEN(layers), layers, acts, MSE);
+
 
     // Train
     size_t epoch = 5000 * 100;
@@ -58,7 +61,7 @@ int main(void)
             }
             // nl_mat_print(x);
             // nl_mat_print(y);
-            nl_model_train(model, x, y, lr, SIGMOID, MSE);
+            nl_model_train(model, x, y, lr);
         }
     }
 
@@ -72,7 +75,7 @@ int main(void)
         for (size_t a = 0; a < y.rows; ++a) {
             py.items[a] = train[i][a + x.rows];
         }
-        nl_model_predict(model, px, py, SIGMOID);
+        nl_model_predict(model, px, py);
         // printf("sum   : %f, cout: %f,\n", py.items[0], py.items[1]);
         // printf("expect: %f,       %f\n", train[i][px.rows], train[i][px.rows + 1]);
 
@@ -102,6 +105,6 @@ int main(void)
         nl_mat_print(model.bs[i]);
     }
 
-    nl_model_free(model);
+    // nl_model_free(model);
     arena_destroy(arena);
 }

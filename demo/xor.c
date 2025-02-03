@@ -17,7 +17,9 @@ int main(void)
 {
     NeuralNet model;
     size_t layers[] = {2, 2, 1};
-    nl_define_layers(&model, NL_ARRAY_LEN(layers), layers);
+    Activation_type acts[] = {SIGMOID, RELU};
+    // Activation_type acts[] = {SIGMOID, SIGMOID};
+    nl_define_layers(&model, NL_ARRAY_LEN(layers), layers, acts, MSE);
     Mat x = nl_mat_alloc(2, 1);
     Mat y = nl_mat_alloc(1, 1);
     nl_rand_init(0, 0);
@@ -36,8 +38,7 @@ int main(void)
             x.items[0] = train[i][0];
             x.items[1] = train[i][1];
             y.items[0] = train[i][2];
-            nl_model_train(model, x, y, lr, SIGMOID, MSE);
-            // nl_model_train(model, x, y, lr, RELU, MSE);
+            nl_model_train(model, x, y, lr);
         }
     }
 
@@ -47,8 +48,7 @@ int main(void)
     for (size_t i = 0; i < 4; ++i) {
         px.items[0] = train[i][0];
         px.items[1] = train[i][1];
-        nl_model_predict(model, px, py, SIGMOID);
-        // nl_model_predict(model, px, py, RELU);
+        nl_model_predict(model, px, py);
         printf("%f , expect: %f\n", py.items[0], train[i][2]);
     }
 
