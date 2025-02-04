@@ -45,25 +45,26 @@ int main(void)
     // Activation_type acts[] = {SIGMOID, SIGMOID};
     nl_define_layers_with_arena(&arena, &model, NL_ARRAY_LEN(layers), layers, acts, MSE);
 
-
     // Train
     size_t epoch = 5000 * 100;
     float lr = 5e-3;
-    Mat x = nl_mat_alloc_with_arena(&arena, 3, 1);
-    Mat y = nl_mat_alloc_with_arena(&arena, 2, 1);
-    for (size_t e = 0; e < epoch; ++e) {
-        for (size_t i = 0; i < TRAIN_SIZE; ++i) {
-            for (size_t a = 0; a < x.rows; ++a) {
-                x.items[a] = train[i][a];
-            }
-            for (size_t a = 0; a < y.rows; ++a) {
-                y.items[a] = train[i][a + x.rows];
-            }
-            // nl_mat_print(x);
-            // nl_mat_print(y);
-            nl_model_train(model, x, y, lr);
+
+    Mat new_x = nl_mat_alloc_with_arena(&arena, 3, TRAIN_SIZE);
+    Mat new_y = nl_mat_alloc_with_arena(&arena, 2, TRAIN_SIZE);
+    // Prepare training data
+    for (size_t i = 0; i < TRAIN_SIZE; ++i) {
+        for (size_t a = 0; a < new_x.rows; ++a) {
+            // new_x.items[a] = train[i][a];
+            NL_MAT_AT(new_x, a, i) = train[i][a];
+        }
+        for (size_t a = 0; a < new_y.rows; ++a) {
+            // new_y.items[a] = train[i][a + new_x.rows];
+            NL_MAT_AT(new_y, a, i) = train[i][a + new_x.rows];
         }
     }
+    nl_mat_print(new_x);
+    nl_mat_print(new_y);
+    nl_model_train(model, new_x, new_y, lr, 1, epoch, false);
 
     // Predict
     Mat px = nl_mat_alloc_with_arena(&arena, 3, 1);
@@ -72,8 +73,8 @@ int main(void)
         for (size_t a = 0; a < px.rows; ++a) {
             px.items[a] = train[i][a];
         }
-        for (size_t a = 0; a < y.rows; ++a) {
-            py.items[a] = train[i][a + x.rows];
+        for (size_t a = 0; a < py.rows; ++a) {
+            py.items[a] = train[i][a + px.rows];
         }
         nl_model_predict(model, px, py);
         // printf("sum   : %f, cout: %f,\n", py.items[0], py.items[1]);
@@ -105,6 +106,5 @@ int main(void)
         nl_mat_print(model.bs[i]);
     }
 
-    // nl_model_free(model);
     arena_destroy(arena);
 }

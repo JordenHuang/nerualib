@@ -57,6 +57,12 @@ int main(void)
     nl_mat_transpose(m_t, m);
     nl_mat_print(m);
     nl_mat_print(m_t);
+
+    Mat m_col_0 = nl_mat_alloc(m_t.rows, 1);
+    nl_mat_get_col(m_col_0, m_t, 1);
+    nl_mat_print(m_col_0);
+
+    nl_mat_free(m_col_0);
     nl_mat_free(m_t);
 
     nl_mat_free(m);
