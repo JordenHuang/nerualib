@@ -41,13 +41,14 @@ int main(void)
 
     NeuralNet model;
     size_t layers[] = {3, 4, 2};
-    Activation_type acts[] = {SIGMOID, RELU};
+    Activation_type acts[] = {RELU, SIGMOID};
     // Activation_type acts[] = {SIGMOID, SIGMOID};
     nl_define_layers_with_arena(&arena, &model, NL_ARRAY_LEN(layers), layers, acts, MSE);
 
     // Train
-    size_t epoch = 5000 * 100;
-    float lr = 5e-3;
+    size_t epoch = 100 * 10;
+    float lr = 5e-1;
+    NL_PRINT_COST_EVERY_N_EPOCHS(100);
 
     Mat new_x = nl_mat_alloc_with_arena(&arena, 3, TRAIN_SIZE);
     Mat new_y = nl_mat_alloc_with_arena(&arena, 2, TRAIN_SIZE);
@@ -64,7 +65,7 @@ int main(void)
     }
     nl_mat_print(new_x);
     nl_mat_print(new_y);
-    nl_model_train(model, new_x, new_y, lr, 1, epoch, false);
+    nl_model_train(model, new_x, new_y, lr, epoch, 1, false);
 
     // Predict
     Mat px = nl_mat_alloc_with_arena(&arena, 3, 1);

@@ -34,6 +34,9 @@ References:
 #define NL_MAT_AT_INDEX(m, idx) m.items[idx]
 #define NL_MAT_AT(m, r, c) m.items[NL_MAT_INDEX(m.cols, r, c)]
 
+// Global variable
+size_t _nl_n_epochs = 1;
+#define NL_PRINT_COST_EVERY_N_EPOCHS(n) _nl_n_epochs = n
 
 typedef struct {
     size_t capacity;
@@ -108,7 +111,7 @@ typedef struct {
 
 void nl_define_layers(NeuralNet *model, size_t count, size_t *layers, Activation_type *acts, Cost_type ct);
 void nl_define_layers_with_arena(Arena *arena, NeuralNet *model, size_t count, size_t *layers, Activation_type *acts, Cost_type ct);
-void nl_model_train(NeuralNet model, Mat xs, Mat ys, float lr, size_t batch_size, size_t epochs, bool shuffle);
+void nl_model_train(NeuralNet model, Mat xs, Mat ys, float lr, size_t epochs, size_t batch_size, bool shuffle);
 void nl_model_feed_forward(NeuralNet model, Mat *zsa, Mat *asa);
 void nl_model_backprop(NeuralNet model, Mat ys, Mat *zsa, Mat *asa, Mat *delta_ws, Mat *delta_bs);
 void nl_model_predict(NeuralNet model, Mat ins, Mat outs);
@@ -474,7 +477,7 @@ void nl_define_layers_with_arena(Arena *arena, NeuralNet *model, size_t count, s
 }
 
 // https://medium.com/%E5%AD%B8%E4%BB%A5%E5%BB%A3%E6%89%8D/%E5%84%AA%E5%8C%96%E6%BC%94%E7%AE%97-5a4213d08943
-void nl_model_train(NeuralNet model, Mat xs, Mat ys, float lr, size_t batch_size, size_t epochs, bool shuffle)
+void nl_model_train(NeuralNet model, Mat xs, Mat ys, float lr, size_t epochs, size_t batch_size, bool shuffle)
 {
     /*
      * - Set batch_size to 1 equals Stochastic Gradient Descent
@@ -509,11 +512,12 @@ void nl_model_train(NeuralNet model, Mat xs, Mat ys, float lr, size_t batch_size
         nabla_bs[i-1] = nl_mat_alloc_with_arena(&arena, model.layers[i], 1);
     }
 
+    Mat y = nl_mat_alloc_with_arena(&arena, ys.rows, 1);
     Mat losses = nl_mat_alloc_with_arena(&arena, asa[model.count-1].rows, asa[model.count-1].cols);
+    float cost;
 
     // No shuffle
     NL_ASSERT(xs.cols % batch_size == 0);
-    Mat y = nl_mat_alloc_with_arena(&arena, ys.rows, 1);
     for (size_t e = 0; e < epochs; ++e) {
         for (size_t i = 1; i < model.count; ++i) {
             nl_mat_zero(nabla_ws[i-1]);
@@ -528,13 +532,6 @@ void nl_model_train(NeuralNet model, Mat xs, Mat ys, float lr, size_t batch_size
 
                 // Forward pass
                 nl_model_feed_forward(model, zsa, asa);
-
-    float cost = nl_mat_cost(losses, asa[model.count-1], y, model.ct);
-    int print_threshold = 1;
-    int ran_num = rand() % 100000;
-    if (ran_num < print_threshold) {
-        printf("  Cost: %f\n", cost);
-    }
 
                 // Backward pass (backpropagaton)
                 nl_model_backprop(model, y, zsa, asa, delta_ws, delta_bs);
@@ -554,6 +551,11 @@ void nl_model_train(NeuralNet model, Mat xs, Mat ys, float lr, size_t batch_size
                 nl_mat_mult_c(nabla_bs[l-1], nabla_bs[l-1], (-lr) / batch_size);
                 nl_mat_add(model.bs[l-1], model.bs[l-1], nabla_bs[l-1]);
             }
+        }
+
+        if ((e+1) % _nl_n_epochs == 0) {
+            cost = nl_mat_cost(losses, asa[model.count-1], y, model.ct);
+            printf("Epoch %zu/%zu\tCost: %f\n", e+1, epochs, cost);
         }
     }
 

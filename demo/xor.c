@@ -19,8 +19,8 @@ int main(void)
 
     NeuralNet model;
     size_t layers[] = {2, 2, 1};
-    Activation_type acts[] = {SIGMOID, RELU};
-    // Activation_type acts[] = {SIGMOID, SIGMOID};
+    // Activation_type acts[] = {SIGMOID, RELU};
+    Activation_type acts[] = {RELU, SIGMOID};
     nl_define_layers(&model, NL_ARRAY_LEN(layers), layers, acts, MSE);
 
     for (size_t i = 0; i < NL_ARRAY_LEN(layers) - 1; ++i) {
@@ -43,9 +43,9 @@ int main(void)
     nl_mat_print(new_y);
 
     printf("===== Train\n");
-    size_t epochs = 5000 * 100;
-    float lr = 1e-3;
-    nl_model_train(model, new_x, new_y, lr, 1, epochs, false);
+    size_t epochs = 100 * 100;
+    float lr = 5e-1;
+    nl_model_train(model, new_x, new_y, lr, epochs, 1, false);
 
 
     // Predict
