@@ -1,7 +1,9 @@
 CC=gcc
 CFLAGS=-Wall -Wextra
-LIBS=-lm
+LIBS=-lm -I../ -I./thirdparty
 
+
+.PHONY: all clean
 
 main:
 	$(CC) $(CFLAGS) -o main.out main.c $(LIBS)
@@ -22,6 +24,10 @@ xor:
 one_bit_adder:
 	$(CC) $(CFLAGS) -o one_bit_adder.out one_bit_adder.c $(LIBS)
 
-.PHONY: cleann
+image_upscale:
+	$(CC) $(CFLAGS) -o image_upscale.out image_upscale.c $(LIBS)
+
+
 clean:
-	rm *.out
+	rm -f *.out *.out
+

@@ -1,7 +1,7 @@
 #include <stdio.h>
 
 #define NERUALIB_IMPLEMENTATION
-#include "../neuralib.h"
+#include "neuralib.h"
 
 #define TRAIN_SIZE (sizeof(train)/sizeof(train[0]))
 

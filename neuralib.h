@@ -38,6 +38,9 @@ References:
 size_t _nl_n_epochs = 1;
 #define NL_PRINT_COST_EVERY_N_EPOCHS(n) _nl_n_epochs = n
 
+size_t nl_arena_capacity = 64 * 1024 * 1024;
+#define NL_SET_ARENA_CAPACITY(cap) nl_arena_capacity = cap
+
 typedef struct {
     size_t capacity;
     size_t size;
@@ -134,13 +137,13 @@ Arena arena_new(size_t bytes)
     Arena a;
     a.capacity = bytes;
     a.size = 0;
-    a.begin = malloc(bytes);
+    a.begin = NL_MALLOC(bytes);
     return a;
 }
 
 void arena_destroy(Arena a)
 {
-    free(a.begin);
+    NL_FREE(a.begin);
 }
 
 void arena_info(Arena a)
@@ -158,6 +161,7 @@ void *arena_alloc(Arena *a, size_t sz)
         return a->begin + offset;
     } else {
         fprintf(stderr, "[ERROR] Not enough capacity for this region\n");
+        exit(1);
         return NULL;
     }
 }
@@ -250,7 +254,9 @@ void nl_mat_rand(Mat m)
 {
     for (size_t i = 0; i < m.rows; ++i) {
         for (size_t j = 0; j < m.cols; ++j) {
-           NL_MAT_AT(m, i, j) = nl_rand_float();
+           // NL_MAT_AT(m, i, j) = nl_rand_float();
+           // NL_MAT_AT(m, i, j) = nl_rand_float() * (1.f - (-1.f)) + (-1.f);
+           NL_MAT_AT(m, i, j) = nl_rand_float() * (2.f) - 1.f;
         }
     }
 }
@@ -484,7 +490,7 @@ void nl_model_train(NeuralNet model, Mat xs, Mat ys, float lr, size_t epochs, si
      * - Set batch_size to 1 < n < xs.cols(=training data size) equals Mini-batch Gradient Descent
      * - Set batch_size to xs.cols(=training data size) equals Batch Gradient Descent
      */
-    Arena arena = arena_new(4 * 1024 * 1024);
+    Arena arena = arena_new(nl_arena_capacity);
 
     // Alloc memoy for zs, array of column vectors
     Mat *zsa = arena_alloc(&arena, sizeof(Mat) * (model.count - 1));
@@ -574,7 +580,7 @@ void nl_model_feed_forward(NeuralNet model, Mat *zsa, Mat *asa)
 // http://neuralnetworksanddeeplearning.com/chap2.html
 void nl_model_backprop(NeuralNet model, Mat ys, Mat *zsa, Mat *asa, Mat *delta_ws, Mat *delta_bs)
 {
-    Arena arena = arena_new(4 * 1024 * 1024);
+    Arena arena = arena_new(nl_arena_capacity);
 
     size_t l = model.count - 1;
 
@@ -639,7 +645,7 @@ void nl_model_backprop(NeuralNet model, Mat ys, Mat *zsa, Mat *asa, Mat *delta_w
 
 void nl_model_predict(NeuralNet model, Mat ins, Mat outs)
 {
-    Arena arena = arena_new(4 * 1024 * 1024);
+    Arena arena = arena_new(nl_arena_capacity);
     // Alloc memoy for zs, array of column vectors
     Mat *zsa = arena_alloc(&arena, sizeof(Mat) * (model.count - 1));
     for (size_t i = 1; i < model.count; ++i) {

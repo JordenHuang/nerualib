@@ -1,5 +1,12 @@
 # History
 
+## 2025/02/05
+
+## 2025/02/04
+- Try to do image upscaling(/demo/image_upscale.c), but it only take a small image, and no matter what the content is in that image, it will always generate a output image that look like the training image, so I think it's not useful, and I decide to try coordinate based neural network to perform image upscaling.
+- Mini-batch gradient descent
+- Use arena to manage memories
+
 ## 2025/02/02
 - Add one_bit_adder, 3 input neurons, 1 hidden layer with 4 neurons, and an output layer with 2 neurons
 - Update neuralib.h to use arena to easily manage the memory
