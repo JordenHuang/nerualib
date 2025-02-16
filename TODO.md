@@ -1,8 +1,11 @@
 # TODO
 
+### Added 2025/02/06
+- [ ] 3 channel image upscale, with fourier samples
+
 ### Added 2025/02/05
-- [ ] Check https://github.com/vsitzmann/awesome-implicit-representations
-- [ ] Image upscaling using coordinate based neural network
+- [x] Check https://github.com/vsitzmann/awesome-implicit-representations
+- [x] Image upscaling using coordinate based neural network
 - [ ] Update imanip.h with image resize function
 
 ### Added 2025/02/04

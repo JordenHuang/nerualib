@@ -79,7 +79,7 @@ typedef struct {
     float *items;
 } Mat;
 
-void nl_rand_init(size_t use_seed, size_t seed);
+void nl_rand_init(bool use_seed, size_t seed);
 float nl_rand_float(void);
 Mat nl_mat_alloc(size_t row, size_t col);
 Mat nl_mat_alloc_with_arena(Arena *arena, size_t row, size_t col);
@@ -203,7 +203,7 @@ float mse_prime(float a, float y)
 }
 
 
-void nl_rand_init(size_t use_seed, size_t seed)
+void nl_rand_init(bool use_seed, size_t seed)
 {
     if (use_seed) srand(seed);
     else srand(time(NULL));
@@ -516,18 +516,26 @@ void nl_model_train(NeuralNet model, Mat xs, Mat ys, float lr, size_t epochs, si
         delta_bs[i-1] = nl_mat_alloc_with_arena(&arena, model.layers[i], 1);
         nabla_ws[i-1] = nl_mat_alloc_with_arena(&arena, model.layers[i], model.layers[i - 1]);
         nabla_bs[i-1] = nl_mat_alloc_with_arena(&arena, model.layers[i], 1);
+            nl_mat_zero(nabla_ws[i-1]);
+            nl_mat_zero(nabla_bs[i-1]);
     }
 
     Mat y = nl_mat_alloc_with_arena(&arena, ys.rows, 1);
     Mat losses = nl_mat_alloc_with_arena(&arena, asa[model.count-1].rows, asa[model.count-1].cols);
-    float cost;
+    float cost = 0.f;
+    bool flag = false;
 
     // No shuffle
     NL_ASSERT(xs.cols % batch_size == 0);
+    if (xs.cols % batch_size != 0) {
+        fprintf(stderr, "xs.cols %% batch_size != 0\n");
+        exit(1);
+    }
+
     for (size_t e = 0; e < epochs; ++e) {
-        for (size_t i = 1; i < model.count; ++i) {
-            nl_mat_zero(nabla_ws[i-1]);
-            nl_mat_zero(nabla_bs[i-1]);
+        if ((e+1) % _nl_n_epochs == 0) {
+            cost = 0.f;
+            flag = true;
         }
 
         for (size_t i = 0; i < xs.cols; i+=batch_size) {
@@ -538,6 +546,7 @@ void nl_model_train(NeuralNet model, Mat xs, Mat ys, float lr, size_t epochs, si
 
                 // Forward pass
                 nl_model_feed_forward(model, zsa, asa);
+                    if (flag) cost += nl_mat_cost(losses, asa[model.count-1], y, model.ct);
 
                 // Backward pass (backpropagaton)
                 nl_model_backprop(model, y, zsa, asa, delta_ws, delta_bs);
@@ -556,13 +565,28 @@ void nl_model_train(NeuralNet model, Mat xs, Mat ys, float lr, size_t epochs, si
 
                 nl_mat_mult_c(nabla_bs[l-1], nabla_bs[l-1], (-lr) / batch_size);
                 nl_mat_add(model.bs[l-1], model.bs[l-1], nabla_bs[l-1]);
+
+                nl_mat_zero(nabla_ws[l-1]);
+                nl_mat_zero(nabla_bs[l-1]);
             }
         }
 
-        if ((e+1) % _nl_n_epochs == 0) {
-            cost = nl_mat_cost(losses, asa[model.count-1], y, model.ct);
-            printf("Epoch %zu/%zu\tCost: %f\n", e+1, epochs, cost);
+        if (flag) {
+            printf("Epoch %zu/%zu\tCost: %f\n", e+1, epochs, cost / (xs.cols));
+            flag = false;
         }
+
+        // if ((e+1) % _nl_n_epochs == 0) {
+        //     cost = 0.f;
+        //     for (size_t i = 0; i < xs.cols; i+=batch_size) {
+        //         for (size_t b = 0; b < batch_size; ++b) {
+        //             nl_mat_get_col(y, ys, i);
+        //             nl_model_feed_forward(model, zsa, asa);
+        //             cost += nl_mat_cost(losses, asa[model.count-1], y, model.ct);
+        //         }
+        //     }
+        //     printf("Epoch %zu/%zu\tCost: %f\n", e+1, epochs, cost / (xs.cols));
+        // }
     }
 
     arena_destroy(arena);

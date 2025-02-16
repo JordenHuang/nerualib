@@ -1,33 +1,31 @@
-CC=gcc
-CFLAGS=-Wall -Wextra
-LIBS=-lm -I../ -I./thirdparty
+CC         = gcc
+CFLAGS     = -Wall -Wextra
+LIBS       = -lm -I../
+THIRDPARTY = -I./thirdparty
 
+# List of available projects (directories containing source code)
+PROJECTS = coordinate_based_network one_bit_adder xor mul logic_gate test
 
-.PHONY: all clean
+.PHONY: all clean $(PROJECTS)
 
-main:
-	$(CC) $(CFLAGS) -o main.out main.c $(LIBS)
+all:
+	@echo "Usage: make <project_name>"
+	@echo "Available projects: $(PROJECTS)"
 
 test:
-	$(CC) $(CFLAGS) -o test.out test.c $(LIBS)
+	$(CC) $(CFLAGS) -o $@.out $@.c $(LIBS)
 
-# From older to newer
-mul:
-	$(CC) $(CFLAGS) -o mul.out mul.c $(LIBS)
+logic_gate mul:
+	$(CC) $(CFLAGS) -o old/$@.out old/$@.c $(LIBS)
 
-logic_gate:
-	$(CC) $(CFLAGS) -o logic_gate.out logic_gate.c $(LIBS)
+# Porject that needs only the neuralib.h
+xor one_bit_adder:
+	$(CC) $(CFLAGS) -o $@/$@.out $@/$@.c $(LIBS)
 
-xor:
-	$(CC) $(CFLAGS) -o xor.out xor.c $(LIBS)
-
-one_bit_adder:
-	$(CC) $(CFLAGS) -o one_bit_adder.out one_bit_adder.c $(LIBS)
-
-image_upscale:
-	$(CC) $(CFLAGS) -o image_upscale.out image_upscale.c $(LIBS)
-
+# Project that needs thirdparty dependencies
+coordinate_based_network:
+	$(CC) $(CFLAGS) -o $@/$@.out $@/$@.c $(LIBS) $(THIRDPARTY)
 
 clean:
-	rm -f *.out *.out
+	rm -f **/*.out
 

@@ -1,6 +1,8 @@
 # History
 
-## 2025/02/05
+## 2025/02/16
+- Remove image upscaling(/demo/image_upscale.c)
+- Re-structure the demo projects
 
 ## 2025/02/04
 - Try to do image upscaling(/demo/image_upscale.c), but it only take a small image, and no matter what the content is in that image, it will always generate a output image that look like the training image, so I think it's not useful, and I decide to try coordinate based neural network to perform image upscaling.
