@@ -4,7 +4,6 @@
 #include "neuralib.h"
 
 
-
 int main(void)
 {
     nl_rand_init(0, 0);

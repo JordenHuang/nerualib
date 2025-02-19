@@ -4,7 +4,7 @@ LIBS       = -lm -I../
 THIRDPARTY = -I./thirdparty
 
 # List of available projects (directories containing source code)
-PROJECTS = coordinate_based_network one_bit_adder xor mul logic_gate test
+PROJECTS = image_upscaler coordinate_based_network one_bit_adder xor mul logic_gate test
 
 .PHONY: all clean $(PROJECTS)
 
@@ -23,7 +23,7 @@ xor one_bit_adder:
 	$(CC) $(CFLAGS) -o $@/$@.out $@/$@.c $(LIBS)
 
 # Project that needs thirdparty dependencies
-coordinate_based_network:
+coordinate_based_network image_upscaler:
 	$(CC) $(CFLAGS) -o $@/$@.out $@/$@.c $(LIBS) $(THIRDPARTY)
 
 clean:

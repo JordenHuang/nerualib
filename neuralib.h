@@ -31,8 +31,8 @@ References:
 
 #define NL_ARRAY_LEN(arr) (sizeof(arr) / sizeof(arr[0]))
 #define NL_MAT_INDEX(columns, r, c) ((r)*(columns) + (c))
-#define NL_MAT_AT_INDEX(m, idx) m.items[idx]
-#define NL_MAT_AT(m, r, c) m.items[NL_MAT_INDEX(m.cols, r, c)]
+#define NL_MAT_AT_INDEX(m, idx) (m.items[idx])
+#define NL_MAT_AT(m, r, c) (m.items[NL_MAT_INDEX(m.cols, r, c)])
 
 // Global variable
 size_t _nl_n_epochs = 1;
