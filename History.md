@@ -1,7 +1,13 @@
 # History
 
+## 2025/02/21
+- Add nl_model_load_with_arena function
+- Add model summary function
+(But not yet merge into neuralib.h)
+
 ## 2025/02/19
 - Add model save and model load in coordinate_based_network.c, but not yet merge into neuralib.h
+
 ## 2025/02/16
 - Remove image upscaling(/demo/image_upscale.c)
 - Re-structure the demo projects

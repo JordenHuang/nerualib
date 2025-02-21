@@ -23,5 +23,5 @@
 - [ ] Add more activation functions
 - [x] Batch gradient descent
 - [x] Make it show costs during training process
-- [ ] model summary function
+- [x] model summary function
 

@@ -90,18 +90,18 @@ void nl_model_save(const char *fname, NeuralNet model)
     fclose(fptr);
 }
 
-bool nl_model_load(const char *fname, NeuralNet *model)
+void nl_model_load(const char *fname, NeuralNet *model)
 {
     FILE *fptr = fopen(fname, "r");
     if (!fptr) {
         fprintf(stderr, "Can NOT open file '%s' to read\n", fname);
     }
 
-    char buf[1024];
+    char buf[512];
     // Count
     fscanf(fptr, "%s", buf);
     fscanf(fptr, "%zu", &(model->count));
-    printf("%zu\n", model->count);
+    // printf("%zu\n", model->count);
 
     // Alloc memeroy
     model->layers = NL_MALLOC(sizeof(size_t) * model->count);
@@ -164,7 +164,117 @@ bool nl_model_load(const char *fname, NeuralNet *model)
 
     fclose(fptr);
 }
-bool nl_model_load_with_arena(Arena *arena, const char *fname, NeuralNet *model);
+
+void nl_model_load_with_arena(Arena *arena, const char *fname, NeuralNet *model)
+{
+    FILE *fptr = fopen(fname, "r");
+    if (!fptr) {
+        fprintf(stderr, "Can NOT open file '%s' to read\n", fname);
+    }
+
+    char buf[512];
+    // Count
+    fscanf(fptr, "%s", buf);
+    fscanf(fptr, "%zu", &(model->count));
+
+    // Alloc memeroy
+    // model->layers = NL_MALLOC(sizeof(size_t) * model->count);
+    model->layers = arena_alloc(arena, sizeof(size_t) * model->count);
+    // model->acts = NL_MALLOC(sizeof(size_t) * (model->count - 1));
+    model->acts = arena_alloc(arena, sizeof(size_t) * (model->count - 1));
+    // model->ws = NL_MALLOC(sizeof(Mat) * (model->count - 1));
+    model->ws = arena_alloc(arena, sizeof(Mat) * (model->count - 1));
+    model->bs = arena_alloc(arena, sizeof(Mat) * (model->count - 1));
+
+    // Layers
+    fscanf(fptr, "%s", buf);
+    for (size_t i = 0; i < model->count; ++i) {
+        fscanf(fptr, "%zu ", &(model->layers[i]));
+        printf("%zu ", model->layers[i]);
+    }
+    printf("\n");
+
+    // Activations
+    fscanf(fptr, "%s", buf);
+    for (size_t i = 0; i < model->count - 1; ++i) {
+        fscanf(fptr, "%u ", &(model->acts[i]));
+        printf("%u ", model->acts[i]);
+    }
+    printf("\n");
+
+    // Cost func
+    fscanf(fptr, "%s", buf);
+    fscanf(fptr, "%u", &(model->ct));
+    printf("%s\n", buf);
+    printf("%u\n", model->ct);
+    printf("cost ok\n");
+
+    // Weights
+    fscanf(fptr, "%s", buf);
+    for (size_t i = 0; i < model->count - 1; ++i) {
+        fscanf(fptr, "%s", buf);
+        model->ws[i] = nl_mat_alloc_with_arena(arena, model->layers[i + 1], model->layers[i]);
+        for (size_t r = 0; r < model->ws[i].rows; ++r) {
+            for (size_t c = 0; c < model->ws[i].cols; ++c) {
+                fscanf(fptr, "%f ", &NL_MAT_AT(model->ws[i], r, c));
+            }
+        }
+        fscanf(fptr, "%s", buf);
+    }
+    fscanf(fptr, "%s", buf);
+    printf("weight ok\n");
+
+    // Biases
+    fscanf(fptr, "%s", buf);
+    for (size_t i = 0; i < model->count - 1; ++i) {
+        fscanf(fptr, "%s", buf);
+        model->bs[i] = nl_mat_alloc_with_arena(arena, model->layers[i + 1], 1);
+        for (size_t r = 0; r < model->bs[i].rows; ++r) {
+            for (size_t c = 0; c < model->bs[i].cols; ++c) {
+                fscanf(fptr, "%f ", &NL_MAT_AT(model->bs[i], r, c));
+            }
+        }
+        fscanf(fptr, "%s", buf);
+    }
+    fscanf(fptr, "%s", buf);
+    printf("bias ok\n");
+
+    fclose(fptr);
+}
+
+void nl_model_summary(NeuralNet model, FILE *fd)
+{
+    fprintf(fd, "--------------------\n");
+    fprintf(fd, "|   Model Summary  |\n");
+    fprintf(fd, "--------------------\n");
+
+    fprintf(fd, "Input layer: %zu\n", model.layers[0]);
+    fprintf(fd, "--------------------\n");
+
+    fprintf(fd, "Hidden layers:\n");
+    char *act;
+    size_t padding = 2;
+    for (size_t i = 1; i < model.count - 1; ++i) {
+        switch (model.acts[i-1]) {
+            case SIGMOID:
+                act = "Sigmoid";
+                break;
+            case RELU:
+                act = "Relu";
+                break;
+        }
+        fprintf(fd, "%*c%zu, %s\n", (int)padding, ' ', model.layers[i], act);
+    }
+    fprintf(fd, "--------------------\n");
+
+    char *ct;
+    switch (model.ct) {
+        case MSE:
+            ct = "Mean square error";
+            break;
+    }
+    fprintf(fd, "Output layer: %zu, %s\n", model.layers[model.count - 1], ct);
+}
 
 /* ------------------------------ */
 
@@ -247,7 +357,7 @@ int main(int argc, char *argv[])
 
     printf("===== Train\n");
     float lr = 7e-2;
-    size_t epochs = 1000 * 1;
+    size_t epochs = 10 * 1;
     size_t batch_size = 4;
     nl_model_train(model, xs, ys, lr, epochs, batch_size, false);
 
@@ -285,9 +395,14 @@ int main(int argc, char *argv[])
     nl_model_save("model.ml", model);
 
     NeuralNet new_model;
-    nl_model_load("model.ml", &new_model);
+    // nl_model_load("model.ml", &new_model);
+
+    nl_model_load_with_arena(&arena, "model.ml", &new_model);
+
     nl_model_save("test_model_read.ml", new_model);
-    nl_model_free(new_model);
+    nl_model_summary(model, stdout);
+
+    // nl_model_free(new_model);
 
     arena_destroy(arena);
     return 0;
