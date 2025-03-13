@@ -317,6 +317,7 @@ void nl_mat_mult(Mat dst, Mat m1, Mat m2)
 
 void nl_mat_dot(Mat dst, Mat m1, Mat m2)
 {
+#if 0
     NL_ASSERT(m1.cols == m2.rows);
     NL_ASSERT(dst.rows == m1.rows);
     NL_ASSERT(dst.cols == m2.cols);
@@ -329,6 +330,22 @@ void nl_mat_dot(Mat dst, Mat m1, Mat m2)
             }
         }
     }
+#else
+    Mat m2_trans = nl_mat_alloc(m2.cols, m2.rows);
+    for (size_t i = 0; i < m2.rows * m2.cols; ++i) {
+        m2_trans.items[i] = m2.items[i];
+    }
+    for (size_t r = 0; r < dst.rows; ++r) {
+        for (size_t c = 0; c < dst.cols; ++c) {
+            size_t idx = NL_MAT_INDEX(dst.cols, r, c);
+            NL_MAT_AT_INDEX(dst, idx) = 0.f;
+            for (size_t cr = 0; cr < m1.cols; ++cr) {
+                NL_MAT_AT_INDEX(dst, idx) += NL_MAT_AT(m1, r, cr) * NL_MAT_AT(m2_trans, c, cr);
+            }
+        }
+    }
+    nl_mat_free(m2_trans);
+#endif
 }
 
 void nl_mat_transpose(Mat dst, Mat m)
