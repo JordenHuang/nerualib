@@ -357,7 +357,7 @@ int main(int argc, char *argv[])
 
     printf("===== Train\n");
     float lr = 7e-2;
-    size_t epochs = 10 * 1;
+    size_t epochs = 1000 * 1;
     size_t batch_size = 4;
     nl_model_train(model, xs, ys, lr, epochs, batch_size, false);
 
@@ -392,15 +392,15 @@ int main(int argc, char *argv[])
     }
     stbi_write_png("out.png", out_w, out_h, n, img_out_data, out_w*n);
 
-    nl_model_save("model.ml", model);
+    // nl_model_save("model.ml", model);
 
     NeuralNet new_model;
     // nl_model_load("model.ml", &new_model);
 
-    nl_model_load_with_arena(&arena, "model.ml", &new_model);
+    // nl_model_load_with_arena(&arena, "model.ml", &new_model);
 
-    nl_model_save("test_model_read.ml", new_model);
-    nl_model_summary(model, stdout);
+    // nl_model_save("test_model_read.ml", new_model);
+    // nl_model_summary(model, stdout);
 
     // nl_model_free(new_model);
 

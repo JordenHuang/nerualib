@@ -1,5 +1,5 @@
 CC         = gcc
-CFLAGS     = -Wall -Wextra
+CFLAGS     = -Wall -Wextra -O2
 LIBS       = -lm -I../
 THIRDPARTY = -I./thirdparty
 

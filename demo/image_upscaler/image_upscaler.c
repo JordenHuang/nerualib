@@ -89,7 +89,7 @@ int main(int argc, char *argv[])
 
     printf("===== Train\n");
     float lr = 7e-2;
-    size_t epochs = 1000 * 8;
+    size_t epochs = 1000 * 5;
     size_t batch_size = 4;
     nl_model_train(model, xs, ys, lr, epochs, batch_size, false);
 

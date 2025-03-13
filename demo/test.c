@@ -34,12 +34,12 @@ int main(void)
     // nl_mat_print(dst);
 
 
-    printf("----------\n");
+    printf("---------- Dot:\n");
     // Mat dot
-    // nl_mat_one(n);
-    // nl_mat_print(n);
-    // nl_mat_dot(dst, m, n);
-    // nl_mat_print(dst);
+    nl_mat_one(n);
+    nl_mat_print(n);
+    nl_mat_dot(dst, m, n);
+    nl_mat_print(dst);
 
     printf("----------\n");
     // Mat multiply constant
@@ -49,20 +49,20 @@ int main(void)
 
     printf("----------\n");
     // Mat transpose
-    nl_mat_free(m);
-    m = nl_mat_alloc(3, 2);
-    nl_mat_rand(m);
-    Mat m_t = nl_mat_alloc(m.cols, m.rows);
-    nl_mat_transpose(m_t, m);
-    nl_mat_print(m);
-    nl_mat_print(m_t);
-
-    Mat m_col_0 = nl_mat_alloc(m_t.rows, 1);
-    nl_mat_get_col(m_col_0, m_t, 1);
-    nl_mat_print(m_col_0);
-
-    nl_mat_free(m_col_0);
-    nl_mat_free(m_t);
+    // nl_mat_free(m);
+    // m = nl_mat_alloc(3, 2);
+    // nl_mat_rand(m);
+    // Mat m_t = nl_mat_alloc(m.cols, m.rows);
+    // nl_mat_transpose(m_t, m);
+    // nl_mat_print(m);
+    // nl_mat_print(m_t);
+    //
+    // Mat m_col_0 = nl_mat_alloc(m_t.rows, 1);
+    // nl_mat_get_col(m_col_0, m_t, 1);
+    // nl_mat_print(m_col_0);
+    //
+    // nl_mat_free(m_col_0);
+    // nl_mat_free(m_t);
 
     nl_mat_free(m);
     nl_mat_free(n);

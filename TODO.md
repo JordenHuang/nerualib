@@ -1,7 +1,7 @@
 # TODO
 
 ### Added 2025/02/06
-- [ ] 3 channel image upscale, with fourier samples
+- [x] 3 channel image upscale, with fourier samples
 
 ### Added 2025/02/05
 - [x] Check https://github.com/vsitzmann/awesome-implicit-representations
