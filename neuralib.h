@@ -29,6 +29,10 @@ References:
 #define NL_ASSERT(v) assert(v)
 #endif // NL_ASSERT
 
+#ifndef NL_FSCANF
+#define NL_FSCANF(stream, fmt, ...) if (fscanf(stream, fmt, __VA_ARGS__)) {}
+#endif // NL_FSCANF
+
 #define NL_ARRAY_LEN(arr) (sizeof(arr) / sizeof(arr[0]))
 #define NL_MAT_INDEX(columns, r, c) ((r)*(columns) + (c))
 #define NL_MAT_AT_INDEX(m, idx) (m.items[idx])
@@ -114,11 +118,16 @@ typedef struct {
 
 void nl_define_layers(NeuralNet *model, size_t count, size_t *layers, Activation_type *acts, Cost_type ct);
 void nl_define_layers_with_arena(Arena *arena, NeuralNet *model, size_t count, size_t *layers, Activation_type *acts, Cost_type ct);
+void nl_model_summary(NeuralNet model, FILE *fd);
 void nl_model_train(NeuralNet model, Mat xs, Mat ys, float lr, size_t epochs, size_t batch_size, bool shuffle);
 void nl_model_feed_forward(NeuralNet model, Mat *zsa, Mat *asa);
 void nl_model_backprop(NeuralNet model, Mat ys, Mat *zsa, Mat *asa, Mat *delta_ws, Mat *delta_bs);
 void nl_model_predict(NeuralNet model, Mat ins, Mat outs);
+float nl_model_accuracy_score(Mat y_true, Mat y_predict);
 void nl_model_free(NeuralNet model);
+void nl_model_save(const char *fname, NeuralNet model);
+void nl_model_load(const char *fname, NeuralNet *model);
+void nl_model_load_with_arena(Arena *arena, const char *fname, NeuralNet *model);
 
 #endif // _NERUALIB_H_
 
@@ -499,6 +508,40 @@ void nl_define_layers_with_arena(Arena *arena, NeuralNet *model, size_t count, s
     }
 }
 
+void nl_model_summary(NeuralNet model, FILE *fd)
+{
+    fprintf(fd, "--------------------\n");
+    fprintf(fd, "|   Model Summary  |\n");
+    fprintf(fd, "--------------------\n");
+
+    fprintf(fd, "Input layer: %zu\n", model.layers[0]);
+    fprintf(fd, "--------------------\n");
+
+    fprintf(fd, "Hidden layers:\n");
+    char *act;
+    size_t padding = 2;
+    for (size_t i = 1; i < model.count - 1; ++i) {
+        switch (model.acts[i-1]) {
+            case SIGMOID:
+                act = "Sigmoid";
+                break;
+            case RELU:
+                act = "Relu";
+                break;
+        }
+        fprintf(fd, "%*c%zu, %s\n", (int)padding, ' ', model.layers[i], act);
+    }
+    fprintf(fd, "--------------------\n");
+
+    char *ct;
+    switch (model.ct) {
+        case MSE:
+            ct = "Mean square error";
+            break;
+    }
+    fprintf(fd, "Output layer: %zu, %s\n", model.layers[model.count - 1], ct);
+}
+
 // https://medium.com/%E5%AD%B8%E4%BB%A5%E5%BB%A3%E6%89%8D/%E5%84%AA%E5%8C%96%E6%BC%94%E7%AE%97-5a4213d08943
 void nl_model_train(NeuralNet model, Mat xs, Mat ys, float lr, size_t epochs, size_t batch_size, bool shuffle)
 {
@@ -710,6 +753,45 @@ void nl_model_predict(NeuralNet model, Mat ins, Mat outs)
     arena_destroy(arena);
 }
 
+float nl_model_accuracy_score(Mat y_true, Mat y_predict)
+{
+    // TODO: Do softmax?
+    size_t correct_count = 0;
+    size_t predictions = y_predict.cols;
+
+    // For all the predictions
+    float y_true_val, y_predict_val;
+    size_t y_true_idx, y_predict_idx;
+    for (size_t pred = 0; pred < predictions; ++pred) {
+        // Find max value in y_true, which is the expected value
+        y_true_val = -1.f;
+        y_true_idx = 0;
+        for (size_t i = 0; i < y_true.rows; ++i) {
+            if (NL_MAT_AT(y_true, i, pred) > y_true_val) {
+                y_true_val = NL_MAT_AT(y_true, i, pred);
+                y_true_idx = i;
+            }
+        }
+        
+        // Find max value in y_predict, which is the predicted value
+        y_predict_val= -1.f;
+        y_predict_idx = 0;
+        for (size_t i = 0; i < y_predict.rows; ++i) {
+            if (NL_MAT_AT(y_predict, i, pred) > y_predict_val) {
+                y_predict_val = NL_MAT_AT(y_predict, i, pred);
+                y_predict_idx = i;
+            }
+        }
+
+        if (y_true_idx == y_predict_idx) {
+            correct_count += 1;
+        }
+    }
+
+    printf("Correct count: %zu\n", correct_count);
+    return correct_count / predictions;
+}
+
 void nl_model_free(NeuralNet model)
 {
     for (size_t i = 1; i < model.count; ++i) {
@@ -720,6 +802,221 @@ void nl_model_free(NeuralNet model)
     NL_FREE(model.acts);
     NL_FREE(model.ws);
     NL_FREE(model.bs);
+}
+
+void nl_model_save(const char *fname, NeuralNet model)
+{
+    FILE *fptr = fopen(fname, "w");
+    if (!fptr) {
+        fprintf(stderr, "Can NOT open file '%s' to save model\n", fname);
+    }
+
+    // Write count
+    fprintf(fptr, "[Count]\n");
+    fprintf(fptr, "%zu", model.count);
+    fprintf(fptr, "\n\n");
+
+    // Write layers
+    fprintf(fptr, "[Layers]\n");
+    for (size_t i = 0; i < model.count; ++i) {
+        fprintf(fptr, "%zu ", model.layers[i]);
+    }
+    fprintf(fptr, "\n\n");
+
+    // Write activations
+    fprintf(fptr, "[Activations]\n");
+    for (size_t i = 0; i < model.count - 1; ++i) {
+        fprintf(fptr, "%u ", model.acts[i]);
+    }
+    fprintf(fptr, "\n\n");
+
+    // Write cost function type
+    fprintf(fptr, "[Cost_func]\n");
+    fprintf(fptr, "%u", model.ct);
+    fprintf(fptr, "\n\n");
+
+    // Write weights
+    fprintf(fptr, "[Weights]\n");
+    for (size_t i = 0; i < model.count - 1; ++i) {
+        fprintf(fptr, "{\n");
+        for (size_t r = 0; r < model.ws[i].rows; ++r) {
+            fprintf(fptr, "  ");
+            for (size_t c = 0; c < model.ws[i].cols; ++c) {
+                fprintf(fptr, "%f ", NL_MAT_AT(model.ws[i], r, c));
+            }
+            fprintf(fptr, "\n");
+        }
+        fprintf(fptr, "}\n");
+    }
+    fprintf(fptr, "\n");
+
+    // Write biases
+    fprintf(fptr, "[Biases]\n");
+    for (size_t i = 0; i < model.count - 1; ++i) {
+        fprintf(fptr, "{\n");
+        for (size_t r = 0; r < model.bs[i].rows; ++r) {
+            fprintf(fptr, "  ");
+            for (size_t c = 0; c < model.bs[i].cols; ++c) {
+                fprintf(fptr, "%f ", NL_MAT_AT(model.bs[i], r, c));
+            }
+            fprintf(fptr, "\n");
+        }
+        fprintf(fptr, "}\n");
+    }
+
+    fclose(fptr);
+}
+
+void nl_model_load(const char *fname, NeuralNet *model)
+{
+    FILE *fptr = fopen(fname, "r");
+    if (!fptr) {
+        fprintf(stderr, "Can NOT open file '%s' to read\n", fname);
+    }
+
+    char buf[512];
+    // Count
+    NL_FSCANF(fptr, "%s", buf);
+    NL_FSCANF(fptr, "%zu", &(model->count));
+    // printf("%zu\n", model->count);
+
+    // Alloc memeroy
+    model->layers = NL_MALLOC(sizeof(size_t) * model->count);
+    model->acts = NL_MALLOC(sizeof(size_t) * (model->count - 1));
+    model->ws = NL_MALLOC(sizeof(Mat) * (model->count - 1));
+    model->bs = NL_MALLOC(sizeof(Mat) * (model->count - 1));
+
+    // Layers
+    NL_FSCANF(fptr, "%s", buf);
+    for (size_t i = 0; i < model->count; ++i) {
+        NL_FSCANF(fptr, "%zu ", &(model->layers[i]));
+        printf("%zu ", model->layers[i]);
+    }
+    printf("\n");
+
+    // Activations
+    NL_FSCANF(fptr, "%s", buf);
+    for (size_t i = 0; i < model->count - 1; ++i) {
+        NL_FSCANF(fptr, "%u ", &(model->acts[i]));
+        printf("%u ", model->acts[i]);
+    }
+    printf("\n");
+
+    // Cost func
+    NL_FSCANF(fptr, "%s", buf);
+    NL_FSCANF(fptr, "%u", &(model->ct));
+    printf("%s\n", buf);
+    printf("%u\n", model->ct);
+    printf("cost ok\n");
+
+    // Weights
+    NL_FSCANF(fptr, "%s", buf);
+    for (size_t i = 0; i < model->count - 1; ++i) {
+        NL_FSCANF(fptr, "%s", buf);
+        model->ws[i] = nl_mat_alloc(model->layers[i + 1], model->layers[i]);
+        for (size_t r = 0; r < model->ws[i].rows; ++r) {
+            for (size_t c = 0; c < model->ws[i].cols; ++c) {
+                NL_FSCANF(fptr, "%f ", &NL_MAT_AT(model->ws[i], r, c));
+            }
+        }
+        NL_FSCANF(fptr, "%s", buf);
+    }
+    NL_FSCANF(fptr, "%s", buf);
+    printf("weight ok\n");
+
+    // Biases
+    NL_FSCANF(fptr, "%s", buf);
+    for (size_t i = 0; i < model->count - 1; ++i) {
+        NL_FSCANF(fptr, "%s", buf);
+        model->bs[i] = nl_mat_alloc(model->layers[i + 1], 1);
+        for (size_t r = 0; r < model->bs[i].rows; ++r) {
+            for (size_t c = 0; c < model->bs[i].cols; ++c) {
+                NL_FSCANF(fptr, "%f ", &NL_MAT_AT(model->bs[i], r, c));
+            }
+        }
+        NL_FSCANF(fptr, "%s", buf);
+    }
+    NL_FSCANF(fptr, "%s", buf);
+    printf("bias ok\n");
+
+    fclose(fptr);
+}
+
+void nl_model_load_with_arena(Arena *arena, const char *fname, NeuralNet *model)
+{
+    FILE *fptr = fopen(fname, "r");
+    if (!fptr) {
+        fprintf(stderr, "Can NOT open file '%s' to read\n", fname);
+    }
+
+    char buf[512];
+    // Count
+    NL_FSCANF(fptr, "%s", buf);
+    NL_FSCANF(fptr, "%zu", &(model->count));
+
+    // Alloc memeroy
+    // model->layers = NL_MALLOC(sizeof(size_t) * model->count);
+    model->layers = arena_alloc(arena, sizeof(size_t) * model->count);
+    // model->acts = NL_MALLOC(sizeof(size_t) * (model->count - 1));
+    model->acts = arena_alloc(arena, sizeof(size_t) * (model->count - 1));
+    // model->ws = NL_MALLOC(sizeof(Mat) * (model->count - 1));
+    model->ws = arena_alloc(arena, sizeof(Mat) * (model->count - 1));
+    model->bs = arena_alloc(arena, sizeof(Mat) * (model->count - 1));
+
+    // Layers
+    NL_FSCANF(fptr, "%s", buf);
+    for (size_t i = 0; i < model->count; ++i) {
+        NL_FSCANF(fptr, "%zu ", &(model->layers[i]));
+        printf("%zu ", model->layers[i]);
+    }
+    printf("\n");
+
+    // Activations
+    NL_FSCANF(fptr, "%s", buf);
+    for (size_t i = 0; i < model->count - 1; ++i) {
+        NL_FSCANF(fptr, "%u ", &(model->acts[i]));
+        printf("%u ", model->acts[i]);
+    }
+    printf("\n");
+
+    // Cost func
+    NL_FSCANF(fptr, "%s", buf);
+    NL_FSCANF(fptr, "%u", &(model->ct));
+    printf("%s\n", buf);
+    printf("%u\n", model->ct);
+    printf("cost ok\n");
+
+    // Weights
+    NL_FSCANF(fptr, "%s", buf);
+    for (size_t i = 0; i < model->count - 1; ++i) {
+        NL_FSCANF(fptr, "%s", buf);
+        model->ws[i] = nl_mat_alloc_with_arena(arena, model->layers[i + 1], model->layers[i]);
+        for (size_t r = 0; r < model->ws[i].rows; ++r) {
+            for (size_t c = 0; c < model->ws[i].cols; ++c) {
+                NL_FSCANF(fptr, "%f ", &NL_MAT_AT(model->ws[i], r, c));
+            }
+        }
+        NL_FSCANF(fptr, "%s", buf);
+    }
+    NL_FSCANF(fptr, "%s", buf);
+    printf("weight ok\n");
+
+    // Biases
+    NL_FSCANF(fptr, "%s", buf);
+    for (size_t i = 0; i < model->count - 1; ++i) {
+        NL_FSCANF(fptr, "%s", buf);
+        model->bs[i] = nl_mat_alloc_with_arena(arena, model->layers[i + 1], 1);
+        for (size_t r = 0; r < model->bs[i].rows; ++r) {
+            for (size_t c = 0; c < model->bs[i].cols; ++c) {
+                NL_FSCANF(fptr, "%f ", &NL_MAT_AT(model->bs[i], r, c));
+            }
+        }
+        NL_FSCANF(fptr, "%s", buf);
+    }
+    NL_FSCANF(fptr, "%s", buf);
+    printf("bias ok\n");
+
+    fclose(fptr);
 }
 
 #endif // NERUALIB_IMPLEMENTATION

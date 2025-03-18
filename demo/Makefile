@@ -23,8 +23,12 @@ xor one_bit_adder:
 	$(CC) $(CFLAGS) -o $@/$@.out $@/$@.c $(LIBS)
 
 # Project that needs thirdparty dependencies
-coordinate_based_network image_upscaler:
+coordinate_based_network:
 	$(CC) $(CFLAGS) -o $@/$@.out $@/$@.c $(LIBS) $(THIRDPARTY)
+
+image_upscaler:
+	$(CC) $(CFLAGS) -o $@/$@.out $@/$@.c $(LIBS) $(THIRDPARTY)
+	$(CC) $(CFLAGS) -o $@/model_load_and_score.out $@/model_load_and_score.c $(LIBS) $(THIRDPARTY)
 
 clean:
 	rm -f **/*.out
