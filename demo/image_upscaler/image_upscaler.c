@@ -89,9 +89,10 @@ int main(int argc, char *argv[])
 
     printf("===== Train\n");
     float lr = 7e-2;
-    size_t epochs = 10 * 5;
+    size_t epochs = 1000 * 5;
     size_t batch_size = 4;
     nl_model_train(model, xs, ys, lr, epochs, batch_size, false);
+
 
     // printf("===== Predict\n");
     printf("===== Scale up\n");
@@ -125,9 +126,11 @@ int main(int argc, char *argv[])
     
     nl_model_summary(model, stdout);
 
+    // Save model
     const char model_path[] = "./image_upscaler/upscaler.model";
     nl_model_save(model_path, model);
-    printf("Model saved\n");
+    printf("Model [%s] saved\n", model_path);
+
 
     arena_destroy(arena);
     return 0;
