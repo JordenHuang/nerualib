@@ -1,5 +1,11 @@
 # TODO
 
+### Added 2025/03/19
+- [ ] Make saving and loading model shows proper messages
+
+### Added 2025/03/18
+- [ ] Implement accuracy function, needs tests
+
 ### Added 2025/02/06
 - [x] 3 channel image upscale, with fourier samples
 

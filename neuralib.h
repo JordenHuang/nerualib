@@ -880,7 +880,7 @@ void nl_model_load(const char *fname, NeuralNet *model)
     NL_FSCANF(fptr, "%zu", &(model->count));
     // printf("%zu\n", model->count);
 
-    // Alloc memeroy
+    // Alloc memory
     model->layers = NL_MALLOC(sizeof(size_t) * model->count);
     model->acts = NL_MALLOC(sizeof(size_t) * (model->count - 1));
     model->ws = NL_MALLOC(sizeof(Mat) * (model->count - 1));
@@ -921,7 +921,6 @@ void nl_model_load(const char *fname, NeuralNet *model)
         }
         NL_FSCANF(fptr, "%s", buf);
     }
-    NL_FSCANF(fptr, "%s", buf);
     printf("weight ok\n");
 
     // Biases
@@ -936,7 +935,6 @@ void nl_model_load(const char *fname, NeuralNet *model)
         }
         NL_FSCANF(fptr, "%s", buf);
     }
-    NL_FSCANF(fptr, "%s", buf);
     printf("bias ok\n");
 
     fclose(fptr);
@@ -952,9 +950,11 @@ void nl_model_load_with_arena(Arena *arena, const char *fname, NeuralNet *model)
     char buf[512];
     // Count
     NL_FSCANF(fptr, "%s", buf);
+    printf("Loading: %s  ", buf);
     NL_FSCANF(fptr, "%zu", &(model->count));
+    printf("Loaded\n");
 
-    // Alloc memeroy
+    // Alloc memory
     // model->layers = NL_MALLOC(sizeof(size_t) * model->count);
     model->layers = arena_alloc(arena, sizeof(size_t) * model->count);
     // model->acts = NL_MALLOC(sizeof(size_t) * (model->count - 1));
@@ -965,29 +965,34 @@ void nl_model_load_with_arena(Arena *arena, const char *fname, NeuralNet *model)
 
     // Layers
     NL_FSCANF(fptr, "%s", buf);
+    printf("Loading: %s  ", buf);
     for (size_t i = 0; i < model->count; ++i) {
         NL_FSCANF(fptr, "%zu ", &(model->layers[i]));
         printf("%zu ", model->layers[i]);
     }
     printf("\n");
+    printf("Loaded\n");
 
     // Activations
     NL_FSCANF(fptr, "%s", buf);
+    printf("Loading: %s\n", buf);
     for (size_t i = 0; i < model->count - 1; ++i) {
         NL_FSCANF(fptr, "%u ", &(model->acts[i]));
         printf("%u ", model->acts[i]);
     }
     printf("\n");
+    printf("Loaded\n");
 
     // Cost func
     NL_FSCANF(fptr, "%s", buf);
     NL_FSCANF(fptr, "%u", &(model->ct));
-    printf("%s\n", buf);
+    printf("Loading: %s  ", buf);
     printf("%u\n", model->ct);
-    printf("cost ok\n");
+    printf("Loaded\n");
 
     // Weights
     NL_FSCANF(fptr, "%s", buf);
+    printf("Loading: %s\n", buf);
     for (size_t i = 0; i < model->count - 1; ++i) {
         NL_FSCANF(fptr, "%s", buf);
         model->ws[i] = nl_mat_alloc_with_arena(arena, model->layers[i + 1], model->layers[i]);
@@ -998,11 +1003,11 @@ void nl_model_load_with_arena(Arena *arena, const char *fname, NeuralNet *model)
         }
         NL_FSCANF(fptr, "%s", buf);
     }
-    NL_FSCANF(fptr, "%s", buf);
-    printf("weight ok\n");
+    printf("Loaded\n");
 
     // Biases
     NL_FSCANF(fptr, "%s", buf);
+    printf("Loading: %s\n", buf);
     for (size_t i = 0; i < model->count - 1; ++i) {
         NL_FSCANF(fptr, "%s", buf);
         model->bs[i] = nl_mat_alloc_with_arena(arena, model->layers[i + 1], 1);
@@ -1013,8 +1018,7 @@ void nl_model_load_with_arena(Arena *arena, const char *fname, NeuralNet *model)
         }
         NL_FSCANF(fptr, "%s", buf);
     }
-    NL_FSCANF(fptr, "%s", buf);
-    printf("bias ok\n");
+    printf("Loaded\n");
 
     fclose(fptr);
 }
