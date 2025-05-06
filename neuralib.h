@@ -1,3 +1,7 @@
+/** neuralib.h
+ * Version 0.1
+ */
+
 /*
 References:
 - https://www.3blue1brown.com/lessons/backpropagation-calculus
