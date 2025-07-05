@@ -1,5 +1,6 @@
 /** neuralib.h
- * Version 0.1
+ * Version 0.2.0
+ * Date: 2025/05/09
  */
 
 /*
@@ -66,10 +67,12 @@ void arena_reset(Arena *a);
 typedef enum {
     SIGMOID,
     RELU,
+    SOFTMAX,
 } Activation_type;
 
 typedef enum {
     MSE,
+    CROSS_ENTROPY,
 } Cost_type;
 
 float sigmoidf(float z);
@@ -79,13 +82,19 @@ float relu_prime(float z);
 
 float mse(float a, float y);
 float mse_prime(float a, float y);
-
+float cross_entropy(float a, float y);
+// float cross_entropy_prime();
 
 typedef struct {
     size_t rows;
     size_t cols;
     float *items;
 } Mat;
+
+void softmaxf(Mat dst, Mat zs);
+// float softmaxf_prime(Mat zs);
+// Special
+void softmax_with_cross_entropy_prime(Mat dst, Mat m, Mat ys);
 
 void nl_rand_init(bool use_seed, size_t seed);
 float nl_rand_float(void);
@@ -103,6 +112,8 @@ void nl_mat_mult(Mat dst, Mat m1, Mat m2);
 void nl_mat_dot(Mat dst, Mat a, Mat b);
 void nl_mat_transpose(Mat dst, Mat m);
 void nl_mat_copy(Mat dst, Mat m);
+void nl_mat_shuffle(Mat m); // Shuffle the matrix by column (columnwis shuffle), reference: https://bost.ocks.org/mike/shuffle/
+void nl_mat_shuffle_array(Mat ms[], size_t length); // Shuffle the array of matrix, same method for each element
 void nl_mat_free(Mat m);
 
 void nl_mat_act(Mat dst, Mat m, Activation_type act);
@@ -205,6 +216,31 @@ float relu_prime(float z)
     return (z > 0.f) ? 1.f : 0.f;
 }
 
+void softmaxf(Mat dst, Mat zs)
+{
+    NL_ASSERT(zs.cols == 1);
+    NL_ASSERT(dst.cols == 1);
+    float max_value = -1.f;
+    float sum = 0.f;
+    float exp_zs[zs.rows];
+    // Find max value
+    for (size_t r = 0; r < zs.rows; ++r) {
+        if (NL_MAT_AT(zs, r, 0) > max_value)
+            max_value = NL_MAT_AT(zs, r, 0);
+    }
+    for (size_t r = 0; r < zs.rows; ++r) {
+        // Shift the value by max_value
+        exp_zs[r] = expf(NL_MAT_AT(zs, r, 0) - max_value);
+        sum += exp_zs[r];
+    }
+    for (size_t r = 0; r < zs.rows; ++r) {
+        NL_MAT_AT(dst, r, 0) = exp_zs[r] / sum;
+    }
+}
+
+// TODO: https://shivammehta25.github.io/posts/deriving-categorical-cross-entropy-and-softmax/
+// float softmaxf_prime(Mat zs);
+
 float mse(float a, float y)
 {
     return (a - y) * (a - y);
@@ -215,6 +251,31 @@ float mse_prime(float a, float y)
     return 2.f * (a - y);
 }
 
+// Reference: https://r23456999.medium.com/%E4%BD%95%E8%AC%82-cross-entropy-%E4%BA%A4%E5%8F%89%E7%86%B5-b6d4cef9189d
+float cross_entropy(float a, float y)
+{
+    // float sum = 0.f;
+    // for (size_t c = 0; c < zs.cols; ++c) {
+    //     sum += NL_MAT_AT(ys, 0, c) * logf(NL_MAT_AT(as, 0, c));
+    // }
+    // return -sum;
+    return -y * logf(a);
+}
+
+// TODO:
+// float cross_entropy_prime();
+
+void softmax_with_cross_entropy_prime(Mat dst, Mat m, Mat ys)
+{
+    NL_ASSERT(m.rows == ys.rows);
+    NL_ASSERT(m.cols == ys.cols);
+    NL_ASSERT(m.cols == 1);
+    NL_ASSERT(dst.rows == m.rows);
+    NL_ASSERT(dst.cols == m.cols);
+    for (size_t r = 0; r < m.rows; ++r) {
+        NL_MAT_AT(dst, r, 0) = NL_MAT_AT(m, r, 0) - NL_MAT_AT(ys, r, 0);
+    }
+}
 
 void nl_rand_init(bool use_seed, size_t seed)
 {
@@ -383,12 +444,64 @@ void nl_mat_copy(Mat dst, Mat m)
     }
 }
 
+void nl_mat_shuffle(Mat m)
+{
+    size_t n = m.cols;
+    int i;
+    Mat temp = nl_mat_alloc(m.rows, 1);
+    while (n) {
+        i = rand() % n;
+        n -= 1;
+        nl_mat_get_col(temp, m, n);
+        for (size_t row = 0; row < m.rows; ++row) {
+            NL_MAT_AT(m, row, n) = NL_MAT_AT(m, row, i);
+            NL_MAT_AT(m, row, i) = NL_MAT_AT(temp, row, 0);
+        }
+    }
+}
+
+void nl_mat_shuffle_array(Mat ms[], size_t length)
+{
+    size_t ti;
+    for (ti = 1; ti < length; ++ti) {
+        NL_ASSERT(ms[ti].cols == ms[ti-1].cols);
+    }
+
+    size_t n = ms[0].cols;
+    int i;
+    Mat temps[length];
+
+    // Alloc temp array
+    for (ti = 0; ti < length; ++ti) {
+        temps[ti] = nl_mat_alloc(ms[ti].rows, 1);
+    }
+
+    while (n) {
+        i = rand() % n;
+        n -= 1;
+        for (ti = 0; ti < length; ++ti) {
+            nl_mat_get_col(temps[ti], ms[ti], n);
+            for (size_t row = 0; row < ms[ti].rows; ++row) {
+                NL_MAT_AT(ms[ti], row, n) = NL_MAT_AT(ms[ti], row, i);
+                NL_MAT_AT(ms[ti], row, i) = NL_MAT_AT(temps[ti], row, 0);
+            }
+        }
+    }
+
+    // Free the temp array
+    for (ti = 0; ti < length; ++ti) {
+        nl_mat_free(temps[ti]);
+    }
+}
+
 void nl_mat_act(Mat dst, Mat m, Activation_type act)
 {
     NL_ASSERT(dst.rows == m.rows);
     NL_ASSERT(dst.cols == m.cols);
     float (*act_fn)(float);
     switch (act) {
+        case SOFTMAX:
+            break;
         case RELU:
             act_fn = relu;
             break;
@@ -397,9 +510,13 @@ void nl_mat_act(Mat dst, Mat m, Activation_type act)
             act_fn = sigmoidf;
             break;
     }
-    for (size_t r = 0; r < dst.rows; ++r) {
-        for (size_t c = 0; c < dst.cols; ++c) {
-            NL_MAT_AT(dst, r, c) = act_fn(NL_MAT_AT(m, r, c));
+    if (act == SOFTMAX) {
+        softmaxf(dst, m);
+    } else {
+        for (size_t r = 0; r < dst.rows; ++r) {
+            for (size_t c = 0; c < dst.cols; ++c) {
+                NL_MAT_AT(dst, r, c) = act_fn(NL_MAT_AT(m, r, c));
+            }
         }
     }
 }
@@ -410,6 +527,10 @@ void nl_mat_act_prime(Mat dst, Mat m, Activation_type act)
     NL_ASSERT(dst.cols == m.cols);
     float (*act_fn_prime)(float);
     switch (act) {
+        case SOFTMAX: {
+            fprintf(stderr, "Not supported (SOFTMAX prime)\n");
+            return;
+        }
         case RELU:
             act_fn_prime = relu_prime;
             break;
@@ -434,17 +555,26 @@ float nl_mat_cost(Mat dst, Mat m, Mat ys, Cost_type ct)
     NL_ASSERT(dst.cols == m.cols);
     float (*loss_fn)(float, float);
     switch (ct) {
+        case CROSS_ENTROPY:
+            loss_fn = cross_entropy;
+            break;
         case MSE:
         default:
             loss_fn = mse;
             break;
     }
+
     float cost = 0.f;
-    for (size_t r = 0; r < m.rows; ++r) {
-        NL_MAT_AT(dst, r, 0) = loss_fn(NL_MAT_AT(m, r, 0), NL_MAT_AT(ys, r, 0));
-        cost += NL_MAT_AT(dst, r, 0);
-    }
-    return cost/(float)m.rows;
+    // if (ct == CROSS_ENTROPY) {
+    //     cost = cross_entropy(m, y);
+    //     return cost;
+    // } else {
+        for (size_t r = 0; r < m.rows; ++r) {
+            NL_MAT_AT(dst, r, 0) = loss_fn(NL_MAT_AT(m, r, 0), NL_MAT_AT(ys, r, 0));
+            cost += NL_MAT_AT(dst, r, 0);
+        }
+        return cost/(float)m.rows;
+    // }
 }
 
 void nl_mat_cost_prime(Mat dst, Mat m, Mat ys, Cost_type ct)
@@ -456,6 +586,9 @@ void nl_mat_cost_prime(Mat dst, Mat m, Mat ys, Cost_type ct)
     NL_ASSERT(dst.cols == m.cols);
     float (*loss_fn_prime)(float, float);
     switch (ct) {
+        case CROSS_ENTROPY:
+            fprintf(stderr, "Not supported (CROSS_ENTROPY prime)\n");
+            break;
         case MSE:
         default:
             loss_fn_prime = mse_prime;
@@ -524,7 +657,7 @@ void nl_model_summary(NeuralNet model, FILE *fd)
     fprintf(fd, "Hidden layers:\n");
     char *act;
     size_t padding = 2;
-    for (size_t i = 1; i < model.count - 1; ++i) {
+    for (size_t i = 1; i < model.count; ++i) {
         switch (model.acts[i-1]) {
             case SIGMOID:
                 act = "Sigmoid";
@@ -532,6 +665,12 @@ void nl_model_summary(NeuralNet model, FILE *fd)
             case RELU:
                 act = "Relu";
                 break;
+            case SOFTMAX:
+                act = "Softmax";
+                break;
+        }
+        if (i == model.count - 1) {
+            fprintf(fd, "Output layer:");
         }
         fprintf(fd, "%*c%zu, %s\n", (int)padding, ' ', model.layers[i], act);
     }
@@ -542,8 +681,11 @@ void nl_model_summary(NeuralNet model, FILE *fd)
         case MSE:
             ct = "Mean square error";
             break;
+        case CROSS_ENTROPY:
+            ct = "cross entropy loss";
+            break;
     }
-    fprintf(fd, "Output layer: %zu, %s\n", model.layers[model.count - 1], ct);
+    fprintf(fd, "Loss function: %s\n", ct);
 }
 
 // https://medium.com/%E5%AD%B8%E4%BB%A5%E5%BB%A3%E6%89%8D/%E5%84%AA%E5%8C%96%E6%BC%94%E7%AE%97-5a4213d08943
@@ -589,7 +731,12 @@ void nl_model_train(NeuralNet model, Mat xs, Mat ys, float lr, size_t epochs, si
     float cost = 0.f;
     bool flag = false;
 
-    // No shuffle
+    // If shuffle
+    if (shuffle) {
+        Mat arr[2] = {xs, ys};
+        nl_mat_shuffle_array(arr, 2);
+    }
+
     NL_ASSERT(xs.cols % batch_size == 0);
     if (xs.cols % batch_size != 0) {
         fprintf(stderr, "xs.cols %% batch_size != 0\n");
@@ -683,9 +830,16 @@ void nl_model_backprop(NeuralNet model, Mat ys, Mat *zsa, Mat *asa, Mat *delta_w
 
     // Calculate delta
     sp = nl_mat_alloc_with_arena(&arena, zsa[l-1].rows, zsa[l-1].cols);
-    nl_mat_act_prime(sp, zsa[l-1], model.acts[l-1]);
-    nl_mat_cost_prime(delta, asa[l], ys, model.ct);
-    nl_mat_mult(delta, delta, sp);
+    // If the last layer activation is softmax and cost function is cross entropy
+    if (model.acts[l-1] == SOFTMAX && model.ct == CROSS_ENTROPY) {
+        softmax_with_cross_entropy_prime(delta, asa[l], ys);
+    }
+    // Normal situation
+    else {
+        nl_mat_act_prime(sp, zsa[l-1], model.acts[l-1]);
+        nl_mat_cost_prime(delta, asa[l], ys, model.ct);
+        nl_mat_mult(delta, delta, sp);
+    }
 
     // Update weights of the output layer
     // transpose of as

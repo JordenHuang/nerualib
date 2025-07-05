@@ -7,7 +7,7 @@
 int main(void)
 {
     nl_rand_init(0, 0);
-#if 1
+#if 0
     size_t r = 2;
     size_t c = 2;
     Mat m = nl_mat_alloc(1, c);
@@ -67,7 +67,30 @@ int main(void)
     nl_mat_free(m);
     nl_mat_free(n);
     nl_mat_free(dst);
+
 #else
+    Arena arena = arena_new(8 * 1024);
+    Mat a = nl_mat_alloc_with_arena(&arena, 5, 7);
+    Mat b = nl_mat_alloc_with_arena(&arena, 2, 7);
+    Mat arr[2] = {a, b};
+
+    for (size_t r = 0; r < a.rows; ++r) {
+        for (size_t c = 0; c < a.cols; ++c) {
+            NL_MAT_AT(a, r, c) = c;
+            NL_MAT_AT(b, r, c) = c;
+        }
+    }
+    
+    // nl_mat_print(a);
+
+    // nl_mat_shuffle(a);
+    // nl_mat_print(a);
+
+    for (size_t i = 0; i < 2; ++i) nl_mat_print(arr[i]);
+    nl_mat_shuffle_array(arr, 2);
+    for (size_t i = 0; i < 2; ++i) nl_mat_print(arr[i]);
+
+    arena_destroy(arena);
 
 #endif
 

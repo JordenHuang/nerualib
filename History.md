@@ -1,5 +1,8 @@
 # History
 
+## 2025/07/06
+- Update nerualib.h (quite a lot of modifications)
+
 ## 2025/02/21
 - Add nl_model_load_with_arena function
 - Add model summary function
