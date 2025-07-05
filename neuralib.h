@@ -1,6 +1,6 @@
 /** neuralib.h
- * Version 0.2.0
- * Date: 2025/05/09
+ * Version 0.3.0
+ * Date: 2025/06/29
  */
 
 /*
@@ -53,7 +53,7 @@ size_t nl_arena_capacity = 64 * 1024 * 1024;
 typedef struct {
     size_t capacity;
     size_t size;
-    uintptr_t *begin;
+    char *begin;
 } Arena;
 
 Arena arena_new(size_t capacity);
@@ -106,6 +106,7 @@ void nl_mat_rand(Mat m);
 void _nl_mat_print(Mat m, const char *name, size_t padding);
 #define nl_mat_print(m) _nl_mat_print(m, #m, 0);
 void nl_mat_get_col(Mat dst, Mat m, size_t col);
+void nl_mat_set_col(Mat dst, Mat m, size_t col);
 void nl_mat_add(Mat dst, Mat m1, Mat m2);
 void nl_mat_mult_c(Mat dst, Mat m, float c);
 void nl_mat_mult(Mat dst, Mat m1, Mat m2);
@@ -182,7 +183,7 @@ void *arena_alloc(Arena *a, size_t sz)
     if ((a->size + sz) <= a->capacity) {
         size_t offset = a->size;
         a->size += sz;
-        return a->begin + offset;
+        return (void *)(a->begin + offset);
     } else {
         fprintf(stderr, "[ERROR] Not enough capacity for this region\n");
         exit(1);
@@ -220,7 +221,7 @@ void softmaxf(Mat dst, Mat zs)
 {
     NL_ASSERT(zs.cols == 1);
     NL_ASSERT(dst.cols == 1);
-    float max_value = -1.f;
+    float max_value = -INFINITY;
     float sum = 0.f;
     float exp_zs[zs.rows];
     // Find max value
@@ -233,8 +234,12 @@ void softmaxf(Mat dst, Mat zs)
         exp_zs[r] = expf(NL_MAT_AT(zs, r, 0) - max_value);
         sum += exp_zs[r];
     }
+    if (sum == 0 || isinf(sum)) {
+        fprintf(stderr, "[ERROR] Sum is %f, at %d\n", sum, __LINE__);
+        exit(1);
+    }
     for (size_t r = 0; r < zs.rows; ++r) {
-        NL_MAT_AT(dst, r, 0) = exp_zs[r] / sum;
+        NL_MAT_AT(dst, r, 0) = exp_zs[r] / (sum + 1e-9f);
     }
 }
 
@@ -328,9 +333,10 @@ void nl_mat_rand(Mat m)
 {
     for (size_t i = 0; i < m.rows; ++i) {
         for (size_t j = 0; j < m.cols; ++j) {
-           // NL_MAT_AT(m, i, j) = nl_rand_float();
-           // NL_MAT_AT(m, i, j) = nl_rand_float() * (1.f - (-1.f)) + (-1.f);
-           NL_MAT_AT(m, i, j) = nl_rand_float() * (2.f) - 1.f;
+            // NL_MAT_AT(m, i, j) = nl_rand_float();
+            // NL_MAT_AT(m, i, j) = nl_rand_float() * (1.f - (-1.f)) + (-1.f);
+            NL_MAT_AT(m, i, j) = nl_rand_float() * (2.f) - 1.f;
+            // NL_MAT_AT(m, i, j) = (nl_rand_float() * 2.f - 1.f) * sqrtf(2.0f / m.cols);
         }
     }
 }
@@ -355,6 +361,15 @@ void nl_mat_get_col(Mat dst, Mat m, size_t col)
     NL_ASSERT(dst.cols == 1);
     for (size_t i = 0; i < dst.rows; ++i) {
         dst.items[i] = NL_MAT_AT(m, i, col);
+    }
+}
+
+void nl_mat_set_col(Mat dst, Mat m, size_t col)
+{
+    NL_ASSERT(dst.rows == m.rows);
+    NL_ASSERT(m.cols == 1);
+    for (size_t i = 0; i < dst.rows; ++i) {
+        NL_MAT_AT(dst, i, col) = m.items[i];
     }
 }
 
@@ -389,6 +404,7 @@ void nl_mat_mult(Mat dst, Mat m1, Mat m2)
     }
 }
 
+// TODO: clean up
 void nl_mat_dot(Mat dst, Mat m1, Mat m2)
 {
 #if 0
@@ -553,28 +569,38 @@ float nl_mat_cost(Mat dst, Mat m, Mat ys, Cost_type ct)
     NL_ASSERT(m.cols == 1);
     NL_ASSERT(dst.rows == m.rows);
     NL_ASSERT(dst.cols == m.cols);
-    float (*loss_fn)(float, float);
-    switch (ct) {
-        case CROSS_ENTROPY:
-            loss_fn = cross_entropy;
-            break;
-        case MSE:
-        default:
-            loss_fn = mse;
-            break;
+    
+    if (ct == CROSS_ENTROPY) {
+        // Find the index of correct class
+        size_t label_idx = 0;
+        for (size_t r = 0; r < ys.rows; ++r) {
+            if (NL_MAT_AT(ys, r, 0) > 0.5f) {
+                label_idx = r;
+                break;
+            }
+        }
+
+        float predicted = NL_MAT_AT(m, label_idx, 0);
+        float loss = -logf(predicted + 1e-9f); // epsilon to prevent log(0)
+
+        // Store loss values for all classes (needed for proper gradient computation)
+        for (size_t r = 0; r < m.rows; ++r) {
+            if (r == label_idx) {
+                NL_MAT_AT(dst, r, 0) = loss;
+            } else {
+                NL_MAT_AT(dst, r, 0) = 0.f;
+            }
+        }
+        return loss;
     }
 
+    // Fallback: MSE
     float cost = 0.f;
-    // if (ct == CROSS_ENTROPY) {
-    //     cost = cross_entropy(m, y);
-    //     return cost;
-    // } else {
-        for (size_t r = 0; r < m.rows; ++r) {
-            NL_MAT_AT(dst, r, 0) = loss_fn(NL_MAT_AT(m, r, 0), NL_MAT_AT(ys, r, 0));
-            cost += NL_MAT_AT(dst, r, 0);
-        }
-        return cost/(float)m.rows;
-    // }
+    for (size_t r = 0; r < m.rows; ++r) {
+        NL_MAT_AT(dst, r, 0) = mse(NL_MAT_AT(m, r, 0), NL_MAT_AT(ys, r, 0));
+        cost += NL_MAT_AT(dst, r, 0);
+    }
+    return cost / (float)m.rows;
 }
 
 void nl_mat_cost_prime(Mat dst, Mat m, Mat ys, Cost_type ct)
@@ -621,7 +647,7 @@ void nl_define_layers(NeuralNet *model, size_t count, size_t *layers, Activation
         model->ws[i-1] = nl_mat_alloc(layers[i], layers[i - 1]);
         model->bs[i-1] = nl_mat_alloc(layers[i], 1);
         nl_mat_rand(model->ws[i-1]);
-        nl_mat_rand(model->bs[i-1]);
+        nl_mat_zero(model->bs[i-1]);
     }
 }
 
@@ -641,7 +667,7 @@ void nl_define_layers_with_arena(Arena *arena, NeuralNet *model, size_t count, s
         model->ws[i-1] = nl_mat_alloc_with_arena(arena, layers[i], layers[i - 1]);
         model->bs[i-1] = nl_mat_alloc_with_arena(arena, layers[i], 1);
         nl_mat_rand(model->ws[i-1]);
-        nl_mat_rand(model->bs[i-1]);
+        nl_mat_zero(model->bs[i-1]);
     }
 }
 
@@ -686,6 +712,7 @@ void nl_model_summary(NeuralNet model, FILE *fd)
             break;
     }
     fprintf(fd, "Loss function: %s\n", ct);
+    fprintf(fd, "--------------------\n");
 }
 
 // https://medium.com/%E5%AD%B8%E4%BB%A5%E5%BB%A3%E6%89%8D/%E5%84%AA%E5%8C%96%E6%BC%94%E7%AE%97-5a4213d08943
@@ -731,25 +758,31 @@ void nl_model_train(NeuralNet model, Mat xs, Mat ys, float lr, size_t epochs, si
     float cost = 0.f;
     bool flag = false;
 
-    // If shuffle
-    if (shuffle) {
-        Mat arr[2] = {xs, ys};
-        nl_mat_shuffle_array(arr, 2);
-    }
-
-    NL_ASSERT(xs.cols % batch_size == 0);
-    if (xs.cols % batch_size != 0) {
-        fprintf(stderr, "xs.cols %% batch_size != 0\n");
-        exit(1);
-    }
-
+    float actual_batch_size = batch_size;
     for (size_t e = 0; e < epochs; ++e) {
+        // If shuffle, shuffle once (twice) per epoch
+        if (shuffle) {
+            Mat arr[2] = { xs, ys };
+            nl_mat_shuffle_array(arr, 2);
+            nl_mat_shuffle_array(arr, 2);
+        }
+
+        batch_size = actual_batch_size;
+        // if (e != 0 && (e == epochs/4 || e == epochs/2 || e == epochs*3/4)) {
+        //     lr *= 0.8f;
+        //     printf("lr drop: %f\n", lr);
+        // }
+
         if ((e+1) % _nl_n_epochs == 0) {
             cost = 0.f;
             flag = true;
         }
 
-        for (size_t i = 0; i < xs.cols; i+=batch_size) {
+        for (size_t i = 0; i < xs.cols+(xs.cols % batch_size); i+=batch_size) {
+            if (i >= xs.cols) {
+                i -= batch_size;
+                batch_size = xs.cols - i;
+            }
             for (size_t b = 0; b < batch_size; ++b) {
                 // Put training data x to asa[0]
                 nl_mat_get_col(asa[0], xs, i + b);
@@ -941,13 +974,14 @@ float nl_model_accuracy_score(Mat y_true, Mat y_predict)
             }
         }
 
+        // printf("%zu <=> %zu\n", y_true_idx, y_predict_idx);
         if (y_true_idx == y_predict_idx) {
             correct_count += 1;
         }
     }
 
     printf("Correct count: %zu\n", correct_count);
-    return correct_count / predictions;
+    return correct_count / (float)predictions;
 }
 
 void nl_model_free(NeuralNet model)
@@ -1048,24 +1082,24 @@ void nl_model_load(const char *fname, NeuralNet *model)
     NL_FSCANF(fptr, "%s", buf);
     for (size_t i = 0; i < model->count; ++i) {
         NL_FSCANF(fptr, "%zu ", &(model->layers[i]));
-        printf("%zu ", model->layers[i]);
+        // printf("%zu ", model->layers[i]);
     }
-    printf("\n");
+    // printf("\n");
 
     // Activations
     NL_FSCANF(fptr, "%s", buf);
     for (size_t i = 0; i < model->count - 1; ++i) {
         NL_FSCANF(fptr, "%u ", &(model->acts[i]));
-        printf("%u ", model->acts[i]);
+        // printf("%u ", model->acts[i]);
     }
-    printf("\n");
+    // printf("\n");
 
     // Cost func
     NL_FSCANF(fptr, "%s", buf);
     NL_FSCANF(fptr, "%u", &(model->ct));
-    printf("%s\n", buf);
-    printf("%u\n", model->ct);
-    printf("cost ok\n");
+    // printf("%s\n", buf);
+    // printf("%u\n", model->ct);
+    // printf("cost ok\n");
 
     // Weights
     NL_FSCANF(fptr, "%s", buf);
@@ -1079,7 +1113,7 @@ void nl_model_load(const char *fname, NeuralNet *model)
         }
         NL_FSCANF(fptr, "%s", buf);
     }
-    printf("weight ok\n");
+    // printf("weight ok\n");
 
     // Biases
     NL_FSCANF(fptr, "%s", buf);
@@ -1093,7 +1127,7 @@ void nl_model_load(const char *fname, NeuralNet *model)
         }
         NL_FSCANF(fptr, "%s", buf);
     }
-    printf("bias ok\n");
+    // printf("bias ok\n");
 
     fclose(fptr);
 }
@@ -1108,9 +1142,9 @@ void nl_model_load_with_arena(Arena *arena, const char *fname, NeuralNet *model)
     char buf[512];
     // Count
     NL_FSCANF(fptr, "%s", buf);
-    printf("Loading: %s  ", buf);
+    // printf("Loading: %s  ", buf);
     NL_FSCANF(fptr, "%zu", &(model->count));
-    printf("Loaded\n");
+    // printf("Loaded\n");
 
     // Alloc memory
     // model->layers = NL_MALLOC(sizeof(size_t) * model->count);
@@ -1126,31 +1160,31 @@ void nl_model_load_with_arena(Arena *arena, const char *fname, NeuralNet *model)
     printf("Loading: %s  ", buf);
     for (size_t i = 0; i < model->count; ++i) {
         NL_FSCANF(fptr, "%zu ", &(model->layers[i]));
-        printf("%zu ", model->layers[i]);
+        // printf("%zu ", model->layers[i]);
     }
-    printf("\n");
-    printf("Loaded\n");
+    // printf("\n");
+    // printf("Loaded\n");
 
     // Activations
     NL_FSCANF(fptr, "%s", buf);
     printf("Loading: %s\n", buf);
     for (size_t i = 0; i < model->count - 1; ++i) {
         NL_FSCANF(fptr, "%u ", &(model->acts[i]));
-        printf("%u ", model->acts[i]);
+        // printf("%u ", model->acts[i]);
     }
-    printf("\n");
-    printf("Loaded\n");
+    // printf("\n");
+    // printf("Loaded\n");
 
     // Cost func
     NL_FSCANF(fptr, "%s", buf);
     NL_FSCANF(fptr, "%u", &(model->ct));
-    printf("Loading: %s  ", buf);
-    printf("%u\n", model->ct);
-    printf("Loaded\n");
+    // printf("Loading: %s  ", buf);
+    // printf("%u\n", model->ct);
+    // printf("Loaded\n");
 
     // Weights
     NL_FSCANF(fptr, "%s", buf);
-    printf("Loading: %s\n", buf);
+    // printf("Loading: %s\n", buf);
     for (size_t i = 0; i < model->count - 1; ++i) {
         NL_FSCANF(fptr, "%s", buf);
         model->ws[i] = nl_mat_alloc_with_arena(arena, model->layers[i + 1], model->layers[i]);
@@ -1161,11 +1195,11 @@ void nl_model_load_with_arena(Arena *arena, const char *fname, NeuralNet *model)
         }
         NL_FSCANF(fptr, "%s", buf);
     }
-    printf("Loaded\n");
+    // printf("Loaded\n");
 
     // Biases
     NL_FSCANF(fptr, "%s", buf);
-    printf("Loading: %s\n", buf);
+    // printf("Loading: %s\n", buf);
     for (size_t i = 0; i < model->count - 1; ++i) {
         NL_FSCANF(fptr, "%s", buf);
         model->bs[i] = nl_mat_alloc_with_arena(arena, model->layers[i + 1], 1);
@@ -1176,7 +1210,7 @@ void nl_model_load_with_arena(Arena *arena, const char *fname, NeuralNet *model)
         }
         NL_FSCANF(fptr, "%s", buf);
     }
-    printf("Loaded\n");
+    // printf("Loaded\n");
 
     fclose(fptr);
 }
